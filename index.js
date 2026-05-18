@@ -38,7 +38,12 @@ async function run() {
 
     });
 
-   
+    app.get('/pets/:petId', async (req, res) => {
+         const petId = parseInt(req.params.petId);
+        const query = {id: petId};
+        const result = await petsCollection.findOne(query);
+        res.send(result);
+    });
 
 
 
