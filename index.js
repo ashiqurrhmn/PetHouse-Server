@@ -77,6 +77,12 @@ async function run() {
 
     });
 
+    app.get('/adoptions/:userId', async (req, res) => {
+        const { userId } = req.params;
+        const result = await adoptionCollection.find({userId}).toArray();
+        res.json(result);
+    }); 
+
     app.post('/pets', verifyToken, async (req, res) => {
         const pet = req.body;
         const result = await petsCollection.insertOne(pet);
