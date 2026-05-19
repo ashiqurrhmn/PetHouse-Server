@@ -54,6 +54,7 @@ async function run() {
 
     const db = client.db('pethouse');
     const petsCollection = db.collection('animals');
+    const adoptionCollection = db.collection('adoptions');
 
     app.get('/pets', async (req, res) => {
         const cursor = petsCollection.find();
@@ -76,13 +77,17 @@ async function run() {
 
     });
 
-    app.post('/pets', async (req, res) => {
+    app.post('/pets', verifyToken, async (req, res) => {
         const pet = req.body;
         const result = await petsCollection.insertOne(pet);
         res.json(result);
     });
 
-
+    app.post('/adoptions', async (req, res) => {
+        const adoption = req.body;
+        const result = await adoptionCollection.insertOne(adoption);
+        res.json(result);
+    });
 
 
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
