@@ -52,6 +52,12 @@ async function run() {
 
     });
 
+    app.post('/pets', async (req, res) => {
+        const pet = req.body;
+        const result = await petsCollection.insertOne(pet);
+        res.send(result);
+    });
+
 
 
 
