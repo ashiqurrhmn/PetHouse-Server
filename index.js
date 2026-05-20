@@ -57,7 +57,17 @@ async function run() {
     const adoptionCollection = db.collection('adoptions');
 
     app.get('/pets', async (req, res) => {
-        const cursor = petsCollection.find();
+        const { userId, ownerEmail } = req.query;
+        const query = {};
+
+        if (userId || ownerEmail) {
+            query.$or = [
+                ...(userId ? [{ userId }] : []),
+                ...(ownerEmail ? [{ ownerEmail }] : []),
+            ];
+        }
+
+        const cursor = petsCollection.find(query);
         const result = await cursor.toArray();
         res.send(result);
 
@@ -77,13 +87,19 @@ async function run() {
 
     });
 
-    app.get('/adoptions/:userId', async (req, res) => {
+    app.get('/adoptions/pet/:petId', verifyToken, async (req, res) => {
+        const { petId } = req.params;
+        const result = await adoptionCollection.find({ petId }).toArray();
+        res.json(result);
+    });
+
+    app.get('/adoptions/:userId', verifyToken, async (req, res) => {
         const { userId } = req.params;
         const result = await adoptionCollection.find({userId}).toArray();
         res.json(result);
     }); 
 
-    app.delete('/adoptions/:adoptionId', async (req, res) => {
+    app.delete('/adoptions/:adoptionId', verifyToken, async (req, res) => {
         const { adoptionId } = req.params;
         const query = { _id: new ObjectId(adoptionId) };
         const result = await adoptionCollection.deleteOne(query);
@@ -93,6 +109,29 @@ async function run() {
     app.post('/pets', verifyToken, async (req, res) => {
         const pet = req.body;
         const result = await petsCollection.insertOne(pet);
+        res.json(result);
+    });
+
+    app.put('/pets/:petId', verifyToken, async (req, res) => {
+        const { petId } = req.params;
+        const updatedPet = req.body;
+        delete updatedPet._id;
+
+        const query = { _id: new ObjectId(petId) };
+        const updateDoc = { $set: updatedPet };
+        const result = await petsCollection.updateOne(query, updateDoc);
+        res.json(result);
+    });
+
+    app.delete('/pets/:petId', verifyToken, async (req, res) => {
+        const { petId } = req.params;
+        const query = { _id: new ObjectId(petId) };
+        const result = await petsCollection.deleteOne(query);
+
+        if (result.deletedCount) {
+            await adoptionCollection.deleteMany({ petId });
+        }
+
         res.json(result);
     });
 
