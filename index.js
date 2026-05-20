@@ -1,16 +1,14 @@
-const express = require('express')
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
+const express = require("express");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const dotenv = require("dotenv");
+const cors = require("cors");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
 dotenv.config();
-const app = express()
+const app = express();
 app.use(cors());
 app.use(express.json());
 const port = process.env.PORT || 5000;
-
-
 
 const uri = process.env.MONGO_URI;
 
@@ -20,29 +18,28 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
 
 const verifyToken = async (req, res, next) => {
-    const authHeader = req?.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).send({ message: 'Unauthorized access' });
-    }
-    const token = authHeader.split(" ")[1];
-    if (!token) {
-        return res.status(401).send({ message: 'Unauthorized access' });
-    }
+  const authHeader = req?.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
 
-    try{
-      const {payload} = await jwtVerify(token, JWKS )
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
     console.log(payload);
     next();
-    }
-    catch(error){
-        return res.status(401).send({ message: 'Unauthorized access' });
-    }
+  } catch (error) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
 };
 
 async function run() {
@@ -52,97 +49,128 @@ async function run() {
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
 
-    const db = client.db('pethouse');
-    const petsCollection = db.collection('animals');
-    const adoptionCollection = db.collection('adoptions');
+    const db = client.db("pethouse");
+    const petsCollection = db.collection("animals");
+    const adoptionCollection = db.collection("adoptions");
 
-    app.get('/pets', async (req, res) => {
-        const { userId, ownerEmail } = req.query;
-        const query = {};
+    app.get("/pets", async (req, res) => {
+      const { search, species, userId, ownerEmail } = req.query;
+      const filters = [];
 
-        if (userId || ownerEmail) {
-            query.$or = [
-                ...(userId ? [{ userId }] : []),
-                ...(ownerEmail ? [{ ownerEmail }] : []),
-            ];
-        }
+      if (search) {
+        filters.push({
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { breed: { $regex: search, $options: "i" } },
+          ],
+        });
+      }
 
-        const cursor = petsCollection.find(query);
-        const result = await cursor.toArray();
-        res.send(result);
+      if (species) {
+        const speciesArray = species.split(",");
 
+        filters.push({
+          species: {
+            $in: speciesArray,
+          },
+        });
+      }
+
+      if (userId || ownerEmail) {
+        filters.push({
+          $or: [
+            ...(userId ? [{ userId }] : []),
+            ...(ownerEmail ? [{ ownerEmail }] : []),
+          ],
+        });
+      }
+
+      const query = filters.length ? { $and: filters } : {};
+      const cursor = petsCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
     });
 
-    app.get('/pets/:petId', verifyToken, async (req, res) => {
-         const {petId} = req.params;
-        const query = { _id: new ObjectId(petId)};
-        const result = await petsCollection.findOne(query);
-        res.send(result);
+    app.get("/pets/:petId", verifyToken, async (req, res) => {
+      const { petId } = req.params;
+      const query = { _id: new ObjectId(petId) };
+      const result = await petsCollection.findOne(query);
+      res.send(result);
     });
 
-    app.get('/featured', async (req, res) => {
-        const cursor = petsCollection.find().limit(6);
-        const result = await cursor.toArray();
-        res.send(result);
-
+    app.get("/featured", async (req, res) => {
+      const cursor = petsCollection.find().limit(6);
+      const result = await cursor.toArray();
+      res.send(result);
     });
 
-    app.get('/adoptions/pet/:petId', verifyToken, async (req, res) => {
-        const { petId } = req.params;
-        const result = await adoptionCollection.find({ petId }).toArray();
-        res.json(result);
+    app.get("/adoptions/pet/:petId", verifyToken, async (req, res) => {
+      const { petId } = req.params;
+      const result = await adoptionCollection.find({ petId }).toArray();
+      res.json(result);
     });
 
-    app.get('/adoptions/:userId', verifyToken, async (req, res) => {
-        const { userId } = req.params;
-        const result = await adoptionCollection.find({userId}).toArray();
-        res.json(result);
-    }); 
-
-    app.delete('/adoptions/:adoptionId', verifyToken, async (req, res) => {
-        const { adoptionId } = req.params;
-        const query = { _id: new ObjectId(adoptionId) };
-        const result = await adoptionCollection.deleteOne(query);
-        res.json(result);
+    app.get("/adoptions/:userId", verifyToken, async (req, res) => {
+      const { userId } = req.params;
+      const result = await adoptionCollection.find({ userId }).toArray();
+      res.json(result);
     });
 
-    app.post('/pets', verifyToken, async (req, res) => {
-        const pet = req.body;
-        const result = await petsCollection.insertOne(pet);
-        res.json(result);
+    app.delete("/adoptions/:adoptionId", verifyToken, async (req, res) => {
+      const { adoptionId } = req.params;
+      const query = { _id: new ObjectId(adoptionId) };
+      const result = await adoptionCollection.deleteOne(query);
+      res.json(result);
     });
 
-    app.put('/pets/:petId', verifyToken, async (req, res) => {
-        const { petId } = req.params;
-        const updatedPet = req.body;
-        delete updatedPet._id;
+    app.patch("/adoptions/:adoptionId", verifyToken, async (req, res) => {
+      const { adoptionId } = req.params;
+      const { status } = req.body;
 
-        const query = { _id: new ObjectId(petId) };
-        const updateDoc = { $set: updatedPet };
-        const result = await petsCollection.updateOne(query, updateDoc);
-        res.json(result);
+      const query = { _id: new ObjectId(adoptionId) };
+      const updateDoc = { $set: { status } };
+      const result = await adoptionCollection.updateOne(query, updateDoc);
+      res.json(result);
     });
 
-    app.delete('/pets/:petId', verifyToken, async (req, res) => {
-        const { petId } = req.params;
-        const query = { _id: new ObjectId(petId) };
-        const result = await petsCollection.deleteOne(query);
-
-        if (result.deletedCount) {
-            await adoptionCollection.deleteMany({ petId });
-        }
-
-        res.json(result);
+    app.post("/pets", verifyToken, async (req, res) => {
+      const pet = req.body;
+      const result = await petsCollection.insertOne(pet);
+      res.json(result);
     });
 
-    app.post('/adoptions', async (req, res) => {
-        const adoption = req.body;
-        const result = await adoptionCollection.insertOne(adoption);
-        res.json(result);
+    app.put("/pets/:petId", verifyToken, async (req, res) => {
+      const { petId } = req.params;
+      const updatedPet = req.body;
+      delete updatedPet._id;
+
+      const query = { _id: new ObjectId(petId) };
+      const updateDoc = { $set: updatedPet };
+      const result = await petsCollection.updateOne(query, updateDoc);
+      res.json(result);
     });
 
+    app.delete("/pets/:petId", verifyToken, async (req, res) => {
+      const { petId } = req.params;
+      const query = { _id: new ObjectId(petId) };
+      const result = await petsCollection.deleteOne(query);
 
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+      if (result.deletedCount) {
+        await adoptionCollection.deleteMany({ petId });
+      }
+
+      res.json(result);
+    });
+
+    app.post("/adoptions", async (req, res) => {
+      const adoption = req.body;
+      const result = await adoptionCollection.insertOne(adoption);
+      res.json(result);
+    });
+
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!",
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -150,12 +178,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
-app.get('/', (req, res) => {
-  res.send('Hello World!')
-})
+app.get("/", (req, res) => {
+  res.send("Hello World!");
+});
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
+  console.log(`Example app listening on port ${port}`);
+});
