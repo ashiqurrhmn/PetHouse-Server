@@ -83,6 +83,13 @@ async function run() {
         res.json(result);
     }); 
 
+    app.delete('/adoptions/:adoptionId', async (req, res) => {
+        const { adoptionId } = req.params;
+        const query = { _id: new ObjectId(adoptionId) };
+        const result = await adoptionCollection.deleteOne(query);
+        res.json(result);
+    });
+
     app.post('/pets', verifyToken, async (req, res) => {
         const pet = req.body;
         const result = await petsCollection.insertOne(pet);
